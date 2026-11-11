@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"devpulse/internal/docker"
 	"devpulse/internal/domain"
 )
 
@@ -55,5 +56,37 @@ func TestRenderTodoWorkflow(t *testing.T) {
 	outDone := RenderTodoDone(todo)
 	if !strings.Contains(outDone, "To-Do #1 Selesai!") {
 		t.Errorf("Unexpected render todo done: %s", outDone)
+	}
+}
+
+func TestRenderContainerList(t *testing.T) {
+	containers := []docker.ContainerInfo{
+		{
+			Names:  []string{"/devpulse-bot"},
+			Image:  "devpulse:latest",
+			State:  "running",
+			Status: "Up 2 hours",
+		},
+		{
+			Names:  []string{"/crashed-app"},
+			Image:  "crash:1.0",
+			State:  "exited",
+			Status: "Exited (1)",
+		},
+	}
+
+	text, markup := RenderContainerList(containers)
+	if !strings.Contains(text, "devpulse-bot") || !strings.Contains(text, "🟢") {
+		t.Errorf("Expected running container indicator, got: %s", text)
+	}
+	if !strings.Contains(text, "crashed-app") || !strings.Contains(text, "🔴") {
+		t.Errorf("Expected exited container indicator, got: %s", text)
+	}
+
+	if len(markup.InlineKeyboard) != 2 {
+		t.Fatalf("Expected 2 action rows, got %d", len(markup.InlineKeyboard))
+	}
+	if markup.InlineKeyboard[0][0].CallbackData != "docker:restart:devpulse-bot" {
+		t.Errorf("Unexpected callback data: %s", markup.InlineKeyboard[0][0].CallbackData)
 	}
 }

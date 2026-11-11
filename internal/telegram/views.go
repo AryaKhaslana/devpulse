@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"devpulse/internal/docker"
 	"devpulse/internal/domain"
 	"devpulse/internal/synthesizer"
 )
@@ -33,6 +34,7 @@ func RenderStart(username string) string {
 	sb.WriteString("• /repo list - Daftar repo yang dipantau\n")
 	sb.WriteString("• /sync - Tarik commit terbaru GitHub sekarang\n")
 	sb.WriteString("• /cari <kata kunci> - Cari riwayat catatan masa lalu\n")
+	sb.WriteString("• /containers atau /docker - Pantau status & restart Docker container\n")
 	return sb.String()
 }
 
@@ -118,4 +120,33 @@ func RenderSearchResults(query string, logs []*domain.WorkLog) string {
 		sb.WriteString(fmt.Sprintf("%d. `%s` %s %s%s\n", i+1, l.LogDate.Format("02 Jan"), l.Category.Icon(), repoPrefix, l.Title))
 	}
 	return sb.String()
+}
+
+func RenderContainerList(containers []docker.ContainerInfo) (string, InlineKeyboardMarkup) {
+	if len(containers) == 0 {
+		return "🐳 Tidak ada container Docker yang terdeteksi di server.", InlineKeyboardMarkup{}
+	}
+
+	var sb strings.Builder
+	sb.WriteString("🐳 *Status Container Docker:*\n\n")
+
+	var keyboard [][]InlineKeyboardButton
+	for i, c := range containers {
+		name := c.CleanName()
+		statusIcon := "🟢"
+		if !c.IsRunning() {
+			statusIcon = "🔴"
+		}
+
+		sb.WriteString(fmt.Sprintf("%d. %s `%s`\n   • Image: `%s`\n   • Status: %s\n", i+1, statusIcon, name, c.Image, c.Status))
+
+		actionRow := []InlineKeyboardButton{
+			{Text: fmt.Sprintf("🔄 Restart %s", name), CallbackData: "docker:restart:" + name},
+			{Text: fmt.Sprintf("📜 Log %s", name), CallbackData: "docker:logs:" + name},
+		}
+		keyboard = append(keyboard, actionRow)
+	}
+
+	sb.WriteString("\nℹ️ Klik tombol di atas atau ketik `/docker restart <nama>` / `/docker logs <nama>`.")
+	return sb.String(), InlineKeyboardMarkup{InlineKeyboard: keyboard}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"devpulse/internal/docker"
 	"devpulse/internal/domain"
 	"devpulse/internal/github"
 	"devpulse/internal/parser"
@@ -16,6 +17,8 @@ import (
 
 type Notifier interface {
 	SendMessage(chatID int64, text string) error
+	SendMessageWithKeyboard(chatID int64, text string, markup interface{}) error
+	AnswerCallbackQuery(callbackQueryID string, text string, showAlert bool) error
 }
 
 type Handler struct {
@@ -25,6 +28,7 @@ type Handler struct {
 	todoRepo     domain.TodoRepository
 	blockerRepo  domain.BlockerRepository
 	githubClient github.Client
+	dockerClient docker.Client
 	sender       Notifier
 	loc          *time.Location
 }
@@ -36,6 +40,7 @@ func NewHandler(
 	todoRepo domain.TodoRepository,
 	blockerRepo domain.BlockerRepository,
 	githubClient github.Client,
+	dockerClient docker.Client,
 	sender Notifier,
 	loc *time.Location,
 ) *Handler {
@@ -46,6 +51,7 @@ func NewHandler(
 		todoRepo:     todoRepo,
 		blockerRepo:  blockerRepo,
 		githubClient: githubClient,
+		dockerClient: dockerClient,
 		sender:       sender,
 		loc:          loc,
 	}
@@ -116,6 +122,19 @@ func (h *Handler) handleCommand(ctx context.Context, chatID int64, username, tex
 			return h.sender.SendMessage(chatID, "Format: `/catat <kegiatan>`\nContoh: `/catat meeting evaluasi sprint`")
 		}
 		return h.handleCasualChat(ctx, chatID, username, strings.Join(parts[1:], " "))
+	case "/containers":
+		return h.cmdContainers(ctx, chatID)
+	case "/docker":
+		if len(parts) == 1 || parts[1] == "ps" || parts[1] == "list" {
+			return h.cmdContainers(ctx, chatID)
+		}
+		if parts[1] == "restart" {
+			return h.cmdDockerRestart(ctx, chatID, username, parts[2:])
+		}
+		if parts[1] == "logs" || parts[1] == "log" {
+			return h.cmdDockerLogs(ctx, chatID, parts[2:])
+		}
+		return h.sender.SendMessage(chatID, "Penggunaan: `/docker [ps | restart <nama> | logs <nama>]`")
 	default:
 		return h.sender.SendMessage(chatID, "Perintah tidak dikenali. Ketik /help untuk panduan penggunaan.")
 	}
@@ -498,4 +517,141 @@ func (h *Handler) cmdSearch(ctx context.Context, chatID int64, query string) err
 	}
 
 	return h.sender.SendMessage(chatID, RenderSearchResults(query, logs))
+}
+
+func (h *Handler) cmdContainers(ctx context.Context, chatID int64) error {
+	if h.dockerClient == nil {
+		return h.sender.SendMessage(chatID, "⚠️ Docker client tidak aktif atau socket tidak terpasang.")
+	}
+
+	containers, err := h.dockerClient.ListContainers(ctx, true)
+	if err != nil {
+		return h.sender.SendMessage(chatID, fmt.Sprintf("❌ Gagal membaca container Docker: %v", err))
+	}
+
+	text, markup := RenderContainerList(containers)
+	return h.sender.SendMessageWithKeyboard(chatID, text, markup)
+}
+
+func (h *Handler) cmdDockerRestart(ctx context.Context, chatID int64, username string, args []string) error {
+	if h.dockerClient == nil {
+		return h.sender.SendMessage(chatID, "⚠️ Docker client tidak aktif atau socket tidak terpasang.")
+	}
+	if len(args) < 1 {
+		return h.sender.SendMessage(chatID, "Format: `/docker restart <nama-container>`\nContoh: `/docker restart pocketpulse-bot`")
+	}
+
+	name := args[0]
+	_ = h.sender.SendMessage(chatID, fmt.Sprintf("⏳ Merestart container `%s`...", name))
+
+	if err := h.dockerClient.RestartContainer(ctx, name); err != nil {
+		return h.sender.SendMessage(chatID, fmt.Sprintf("❌ Gagal restart container `%s`: %v", name, err))
+	}
+
+	// Auto-record worklog in DevPulse
+	acc, err := h.accountRepo.CreateOrGet(ctx, chatID, username)
+	if err == nil {
+		now := time.Now().In(h.loc)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, h.loc)
+		workLog := &domain.WorkLog{
+			AccountID: acc.ID,
+			Title:     fmt.Sprintf("Restarted docker container `%s` via DevPulse Watchdog", name),
+			Category:  domain.CategoryDeploy,
+			Source:    "docker_watchdog",
+			LogDate:   today,
+		}
+		_ = h.workLogRepo.Create(ctx, workLog)
+	}
+
+	return h.sender.SendMessage(chatID, fmt.Sprintf("✅ Container `%s` berhasil direstart dan dicatat ke aktivitas hari ini!", name))
+}
+
+func (h *Handler) cmdDockerLogs(ctx context.Context, chatID int64, args []string) error {
+	if h.dockerClient == nil {
+		return h.sender.SendMessage(chatID, "⚠️ Docker client tidak aktif atau socket tidak terpasang.")
+	}
+	if len(args) < 1 {
+		return h.sender.SendMessage(chatID, "Format: `/docker logs <nama-container>`\nContoh: `/docker logs devpulse-bot`")
+	}
+
+	name := args[0]
+	logs, err := h.dockerClient.GetContainerLogs(ctx, name, 25)
+	if err != nil {
+		return h.sender.SendMessage(chatID, fmt.Sprintf("❌ Gagal mengambil log container `%s`: %v", name, err))
+	}
+
+	if len(logs) > 3500 {
+		logs = logs[len(logs)-3500:]
+	}
+
+	msg := fmt.Sprintf("📜 *Log Terakhir `%s` (25 baris):*\n```\n%s\n```", name, logs)
+	return h.sender.SendMessage(chatID, msg)
+}
+
+func (h *Handler) DispatchCallback(ctx context.Context, cb *CallbackQuery) error {
+	if cb == nil || cb.Data == "" {
+		return nil
+	}
+
+	chatID := cb.From.ID
+	if cb.Message != nil && cb.Message.Chat.ID != 0 {
+		chatID = cb.Message.Chat.ID
+	}
+	username := cb.From.Username
+	if username == "" {
+		username = cb.From.FirstName
+	}
+
+	data := cb.Data
+	if strings.HasPrefix(data, "docker:restart:") {
+		name := strings.TrimPrefix(data, "docker:restart:")
+		_ = h.sender.AnswerCallbackQuery(cb.ID, fmt.Sprintf("Merestart container %s...", name), false)
+
+		if h.dockerClient == nil {
+			return h.sender.SendMessage(chatID, "⚠️ Docker client tidak aktif.")
+		}
+
+		if err := h.dockerClient.RestartContainer(ctx, name); err != nil {
+			return h.sender.SendMessage(chatID, fmt.Sprintf("❌ Gagal restart container `%s`: %v", name, err))
+		}
+
+		acc, err := h.accountRepo.CreateOrGet(ctx, chatID, username)
+		if err == nil {
+			now := time.Now().In(h.loc)
+			today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, h.loc)
+			workLog := &domain.WorkLog{
+				AccountID: acc.ID,
+				Title:     fmt.Sprintf("Restarted docker container `%s` via DevPulse Watchdog", name),
+				Category:  domain.CategoryDeploy,
+				Source:    "docker_watchdog",
+				LogDate:   today,
+			}
+			_ = h.workLogRepo.Create(ctx, workLog)
+		}
+
+		return h.sender.SendMessage(chatID, fmt.Sprintf("✅ Container `%s` berhasil direstart dan dicatat ke aktivitas hari ini!", name))
+	}
+
+	if strings.HasPrefix(data, "docker:logs:") {
+		name := strings.TrimPrefix(data, "docker:logs:")
+		_ = h.sender.AnswerCallbackQuery(cb.ID, fmt.Sprintf("Mengambil log %s...", name), false)
+
+		if h.dockerClient == nil {
+			return h.sender.SendMessage(chatID, "⚠️ Docker client tidak aktif.")
+		}
+
+		logs, err := h.dockerClient.GetContainerLogs(ctx, name, 25)
+		if err != nil {
+			return h.sender.SendMessage(chatID, fmt.Sprintf("❌ Gagal mengambil log container `%s`: %v", name, err))
+		}
+
+		if len(logs) > 3500 {
+			logs = logs[len(logs)-3500:]
+		}
+
+		msg := fmt.Sprintf("📜 *Log Terakhir `%s` (25 baris):*\n```\n%s\n```", name, logs)
+		return h.sender.SendMessage(chatID, msg)
+	}
+
+	return nil
 }

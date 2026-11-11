@@ -40,6 +40,8 @@ services:
       WEBHOOK_PATH: /webhook
     ports:
       - "${BOT_PORT:-8090}:8090"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   devpulse_postgres_data:

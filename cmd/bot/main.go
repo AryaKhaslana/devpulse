@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"devpulse/internal/config"
 	"devpulse/internal/database"
+	"devpulse/internal/docker"
 	"devpulse/internal/github"
 	"devpulse/internal/repository/postgres"
 	"devpulse/internal/scheduler"
@@ -41,13 +43,18 @@ func main() {
 	todoRepo := postgres.NewTodoRepo(db.Pool)
 	blockerRepo := postgres.NewBlockerRepo(db.Pool)
 
-	// Instantiate GitHub Client
+	// Instantiate GitHub Client & Docker Client
 	githubClient := github.NewClient()
+	dockerClient := docker.NewClient("/var/run/docker.sock")
 
 	// Instantiate Handler & Telegram Bot
-	handler := telegram.NewHandler(accountRepo, repoRepo, workLogRepo, todoRepo, blockerRepo, githubClient, nil, cfg.Location)
+	handler := telegram.NewHandler(accountRepo, repoRepo, workLogRepo, todoRepo, blockerRepo, githubClient, dockerClient, nil, cfg.Location)
 	bot := telegram.NewBot(cfg, handler)
 	handler.SetSender(bot)
+
+	// Initialize Docker Crash Watchdog (polls every 15s)
+	watchdog := docker.NewWatchdog(dockerClient, accountRepo, bot)
+	watchdog.Start(ctx, 15*time.Second)
 
 	// Initialize Scheduler (Standup 08:30, Logbook Fri 17:00, Git Sync)
 	sched := scheduler.NewScheduler(accountRepo, repoRepo, workLogRepo, todoRepo, blockerRepo, githubClient, bot, cfg.Location)

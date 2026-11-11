@@ -35,6 +35,7 @@ Banyak developer, anak magang, dan siswa PKL menghadapi masalah yang sama:
 - **☕ Instant Standup Generator (`/standup`)**: Menghasilkan format standup profesional dalam bahasa Indonesia rapi kapan saja secara on-demand.
 - **📋 Weekly PKL Logbook (`/logbook`)**: Format tabel hari Senin sampai Jumat lengkap dengan total capaian kategori koding, meeting, riset, dan deploy.
 - **🎯 Task & Blocker Tracker (`/todo` & `/blocker`)**: Catat rencana hari ini dan kendala teknis (`blocker: nunggu token mentor`). Saat to-do diselesaikan via `/todo done <id>`, otomatis tercatat sebagai capaian kerja hari ini.
+- **🐳 Native Docker Watchdog & Remote Management (`/containers` & `/docker`)**: Pantau kesehatan container server tanpa dependency library berat (Go Unix socket `/var/run/docker.sock`). Notifikasi alert instan saat container crash dilengkapi inline button `[🔄 Restart]` & `[📜 Log]`. Restart otomatis dicatat ke riwayat standup/logbook sebagai aktivitas deploy!
 - **🔍 Natural Work Search (`/cari <keyword>`)**: Cari kembali catatan koding masa lalu dalam hitungan detik.
 - **⚡ Super Lightweight**: Dibangun murni dengan Go standard library + driver atomic `pgx/v5` dan `robfig/cron/v3`. Tanpa framework berat eksternal.
 
@@ -123,6 +124,8 @@ Banyak developer, anak magang, dan siswa PKL menghadapi masalah yang sama:
 | `/sync` | - | Sinkronisasi commit terbaru GitHub sekarang |
 | `/cari` | `<kata_kunci>` | Cari riwayat kodingan & memo masa lalu |
 | `/catat` | `<kegiatan>` | Catat aktivitas kerja secara manual eksplisit |
+| `/containers` | - | Status seluruh Docker container & tombol aksi cepat |
+| `/docker` | `[ps / restart <nama> / logs <nama>]` | Manajemen container server via chat Telegram |
 
 ---
 
@@ -140,6 +143,11 @@ devpulse/
 │   │   ├── db.go                 # pgx connection pool & embedded auto-migration
 │   │   ├── db_test.go            # Integration test schema & table verification
 │   │   └── migrations.sql        # Skema DDL ACID (Accounts, MonitoredRepos, WorkLogs, Todos, Blockers)
+│   ├── docker/
+│   │   ├── client.go             # Zero-dependency Docker HTTP socket client (/var/run/docker.sock)
+│   │   ├── client_test.go        # Unit tests log stream multiplexing & mock API
+│   │   ├── watchdog.go           # Background crash detector & proactive Telegram alert daemon
+│   │   └── watchdog_test.go      # Unit test crash detection & alert deduplication
 │   ├── domain/
 │   │   ├── account.go            # Entity & Repository Interface Account
 │   │   ├── blocker.go            # Entity & Repository Interface Blocker
