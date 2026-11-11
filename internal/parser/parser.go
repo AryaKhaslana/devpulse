@@ -28,11 +28,13 @@ var (
 	blockerRegex = regexp.MustCompile(`(?i)^(?:blocker|kendala|hambatan|masalah)[\s:]+(.+)`)
 	catatRegex   = regexp.MustCompile(`(?i)^(?:catat)[\s:]+(.+)`)
 
-	meetingWords  = []string{"meeting", "briefing", "rapat", "diskusi", "ngobrol", "sync", "evaluasi", "koordinasi"}
+	casualPrefixRegex = regexp.MustCompile(`(?i)^(?:(?:tadi|hari\s+ini|sekarang|gw|lagi|habis|udah)\s+)+`)
+
+	meetingWords  = []string{"meeting", "meet", "meetup", "briefing", "rapat", "diskusi", "ngobrol", "sync", "evaluasi", "koordinasi", "bahas", "ketemu", "bicara", "konsultasi", "interview", "pembahasan"}
 	bugfixWords   = []string{"fix", "fixing", "bug", "error", "hotfix", "troubleshoot", "resolve", "benerin", "solved"}
-	researchWords = []string{"riset", "research", "baca", "belajar", "eksplor", "explore", "benchmark", "analisa", "analisis", "investigasi"}
+	researchWords = []string{"riset", "research", "nyari", "cari", "referensi", "baca", "belajar", "pelajari", "eksplor", "explore", "benchmark", "analisa", "analisis", "investigasi", "browsing"}
 	deployWords   = []string{"deploy", "deployment", "release", "publish", "vps", "docker", "ci/cd", "staging", "production"}
-	codeWords     = []string{"ngoding", "koding", "refactor", "fitur", "feature", "slicing", "implement", "implementasi", "endpoint", "api", "crud", "query", "migrasi"}
+	codeWords     = []string{"ngoding", "koding", "coding", "bikin", "buat", "refactor", "fitur", "feature", "slicing", "implement", "implementasi", "endpoint", "api", "crud", "query", "migrasi", "desain", "design", "wireframe", "video", "editing", "draft"}
 
 	greetings = []string{"halo", "hai", "hello", "hi", "p", "ping", "test", "tes", "selamat pagi", "selamat siang", "selamat malam", "assalamualaikum"}
 )
@@ -131,6 +133,10 @@ func formatTitle(text string) string {
 	t := strings.TrimSpace(text)
 	if len(t) == 0 {
 		return ""
+	}
+	cleaned := strings.TrimSpace(casualPrefixRegex.ReplaceAllString(t, ""))
+	if len(cleaned) >= 3 {
+		t = cleaned
 	}
 	// Capitalize first character
 	r := []rune(t)

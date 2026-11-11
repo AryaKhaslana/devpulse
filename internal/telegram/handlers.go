@@ -101,6 +101,9 @@ func (h *Handler) handleCommand(ctx context.Context, chatID int64, username, tex
 	case "/logbook":
 		return h.cmdLogbook(ctx, chatID, username)
 	case "/today":
+		if len(parts) > 1 {
+			return h.handleCasualChat(ctx, chatID, username, strings.Join(parts[1:], " "))
+		}
 		return h.cmdToday(ctx, chatID)
 	case "/todo":
 		return h.cmdTodo(ctx, chatID, parts[1:])

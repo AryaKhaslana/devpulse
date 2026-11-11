@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS work_logs (
 
 CREATE INDEX IF NOT EXISTS idx_work_logs_acc_date ON work_logs(account_id, log_date DESC);
 CREATE INDEX IF NOT EXISTS idx_work_logs_acc_cat ON work_logs(account_id, category);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_work_logs_unique_commit ON work_logs(account_id, commit_hash) WHERE commit_hash IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_work_logs_unique_commit ON work_logs(account_id, commit_hash) WHERE commit_hash IS NOT NULL AND commit_hash != '';
 
 -- 5. TABEL TODOS
 CREATE TABLE IF NOT EXISTS todos (

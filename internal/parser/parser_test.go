@@ -74,6 +74,20 @@ func TestParseCasualInput(t *testing.T) {
 			wantTitle:    "Ngoding endpoint settlement piutang",
 		},
 		{
+			name:         "informal meeting with casual prefix",
+			input:        "sekarang gw bahas sama pak zaenal terkait target video dan pembuatan draft bersama raka",
+			wantType:     ParsedTypeLog,
+			wantCategory: domain.CategoryMeeting,
+			wantTitle:    "Bahas sama pak zaenal terkait target video dan pembuatan draft bersama raka",
+		},
+		{
+			name:         "informal research with casual prefix",
+			input:        "hari ini gw lagi nyari referensi web",
+			wantType:     ParsedTypeLog,
+			wantCategory: domain.CategoryResearch,
+			wantTitle:    "Nyari referensi web",
+		},
+		{
 			name:         "explicit catat prefix",
 			input:        "catat: koordinasi teknis dengan mentor pkl",
 			wantType:     ParsedTypeLog,

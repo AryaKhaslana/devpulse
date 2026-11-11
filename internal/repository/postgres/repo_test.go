@@ -91,6 +91,20 @@ func TestPostgresRepositoriesIntegration(t *testing.T) {
 		t.Fatalf("Failed to create work log: %v", err)
 	}
 
+	// Second manual work log (verifies no collision on empty commit_hash)
+	log2 := &domain.WorkLog{
+		AccountID: acc.ID,
+		Category:  domain.CategoryResearch,
+		Source:    "MANUAL",
+		Title:     "Riset query optimasi postgres",
+		LogDate:   today,
+		CreatedAt: now,
+	}
+	err = workLogRepo.Create(ctx, log2)
+	if err != nil {
+		t.Fatalf("Failed to create second manual work log: %v", err)
+	}
+
 	// Batch Git Commits Ingestion & Idempotency
 	gitCommits := []*domain.WorkLog{
 		{

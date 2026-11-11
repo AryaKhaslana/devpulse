@@ -22,7 +22,7 @@ func NewWorkLogRepo(pool *pgxpool.Pool) *WorkLogRepo {
 func (r *WorkLogRepo) Create(ctx context.Context, log *domain.WorkLog) error {
 	query := `
 		INSERT INTO work_logs (account_id, category, source, repo_name, title, details, commit_hash, log_date, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, CURRENT_TIMESTAMP))
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, ''), NULLIF($7, ''), $8, COALESCE($9, CURRENT_TIMESTAMP))
 		RETURNING id, created_at
 	`
 	var createdAt *time.Time
@@ -52,8 +52,8 @@ func (r *WorkLogRepo) CreateBatchGitCommits(ctx context.Context, logs []*domain.
 	insertedCount := 0
 	query := `
 		INSERT INTO work_logs (account_id, category, source, repo_name, title, details, commit_hash, log_date, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (account_id, commit_hash) WHERE commit_hash IS NOT NULL DO NOTHING
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9)
+		ON CONFLICT (account_id, commit_hash) WHERE commit_hash IS NOT NULL AND commit_hash != '' DO NOTHING
 		RETURNING id
 	`
 
