@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: devpulse-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-devpulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpulse_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-devpulse}
+      TZ: Asia/Jakarta
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - devpulse_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-devpulse} -d ${POSTGRES_DB:-devpulse}"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devpulse-bot
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      DATABASE_URL: postgres://${POSTGRES_USER:-devpulse}:${POSTGRES_PASSWORD:-devpulse_secret}@postgres:5432/${POSTGRES_DB:-devpulse}?sslmode=disable
+      TIMEZONE: Asia/Jakarta
+      BOT_MODE: ${BOT_MODE:-polling}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_PORT: 8090
+      WEBHOOK_PATH: /webhook
+    ports:
+      - "${BOT_PORT:-8090}:8090"
+
+volumes:
+  devpulse_postgres_data:
