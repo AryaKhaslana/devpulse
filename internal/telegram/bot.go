@@ -61,21 +61,20 @@ func NewBot(cfg *config.Config, handler *Handler) *Bot {
 	pollTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 0,
+			Timeout:   15 * time.Second,
+			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 20 * time.Second,
-		DisableKeepAlives:     true,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ResponseHeaderTimeout: 35 * time.Second,
 	}
 
 	sendTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
+			Timeout:   10 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
 		MaxIdleConns:        10,
 		IdleConnTimeout:     30 * time.Second,
 	}
@@ -84,11 +83,11 @@ func NewBot(cfg *config.Config, handler *Handler) *Bot {
 		token: cfg.BotToken,
 		pollClient: &http.Client{
 			Transport: pollTransport,
-			Timeout:   25 * time.Second,
+			Timeout:   40 * time.Second,
 		},
 		sendClient: &http.Client{
 			Transport: sendTransport,
-			Timeout:   10 * time.Second,
+			Timeout:   15 * time.Second,
 		},
 		handler:     handler,
 		mode:        cfg.BotMode,
