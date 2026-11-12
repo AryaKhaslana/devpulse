@@ -21,7 +21,7 @@ func TestDatabaseMigrationAndTables(t *testing.T) {
 	defer db.Close()
 
 	// Verify required tables exist
-	tables := []string{"accounts", "monitored_repos", "work_logs", "todos", "blockers"}
+	tables := []string{"accounts", "monitored_repos", "work_logs", "todos", "blockers", "ideas"}
 	for _, tbl := range tables {
 		var exists bool
 		query := `SELECT EXISTS (

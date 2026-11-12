@@ -42,13 +42,14 @@ func main() {
 	workLogRepo := postgres.NewWorkLogRepo(db.Pool)
 	todoRepo := postgres.NewTodoRepo(db.Pool)
 	blockerRepo := postgres.NewBlockerRepo(db.Pool)
+	ideaRepo := postgres.NewIdeaRepo(db.Pool)
 
 	// Instantiate GitHub Client & Docker Client
 	githubClient := github.NewClient()
 	dockerClient := docker.NewClient("/var/run/docker.sock")
 
 	// Instantiate Handler & Telegram Bot
-	handler := telegram.NewHandler(accountRepo, repoRepo, workLogRepo, todoRepo, blockerRepo, githubClient, dockerClient, nil, cfg.Location)
+	handler := telegram.NewHandler(accountRepo, repoRepo, workLogRepo, todoRepo, blockerRepo, ideaRepo, githubClient, dockerClient, nil, cfg.Location)
 	bot := telegram.NewBot(cfg, handler)
 	handler.SetSender(bot)
 

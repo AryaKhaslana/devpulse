@@ -27,6 +27,7 @@ type Handler struct {
 	workLogRepo  domain.WorkLogRepository
 	todoRepo     domain.TodoRepository
 	blockerRepo  domain.BlockerRepository
+	ideaRepo     domain.IdeaRepository
 	githubClient github.Client
 	dockerClient docker.Client
 	sender       Notifier
@@ -39,6 +40,7 @@ func NewHandler(
 	workLogRepo domain.WorkLogRepository,
 	todoRepo domain.TodoRepository,
 	blockerRepo domain.BlockerRepository,
+	ideaRepo domain.IdeaRepository,
 	githubClient github.Client,
 	dockerClient docker.Client,
 	sender Notifier,
@@ -50,6 +52,7 @@ func NewHandler(
 		workLogRepo:  workLogRepo,
 		todoRepo:     todoRepo,
 		blockerRepo:  blockerRepo,
+		ideaRepo:     ideaRepo,
 		githubClient: githubClient,
 		dockerClient: dockerClient,
 		sender:       sender,
@@ -107,6 +110,8 @@ func (h *Handler) handleCommand(ctx context.Context, chatID int64, username, tex
 		return h.cmdToday(ctx, chatID)
 	case "/todo":
 		return h.cmdTodo(ctx, chatID, parts[1:])
+	case "/ide", "/ideas":
+		return h.cmdIdea(ctx, chatID, parts[1:])
 	case "/blocker":
 		return h.cmdBlocker(ctx, chatID, parts[1:])
 	case "/github":
@@ -163,6 +168,16 @@ func (h *Handler) handleCasualChat(ctx context.Context, chatID int64, username, 
 			return h.sender.SendMessage(chatID, "Gagal menyimpan to-do.")
 		}
 		return h.sender.SendMessage(chatID, RenderTodoRecorded(todo))
+
+	case parser.ParsedTypeIdea:
+		idea := &domain.Idea{
+			AccountID: acc.ID,
+			Title:     parsed.Title,
+		}
+		if err := h.ideaRepo.Create(ctx, idea); err != nil {
+			return h.sender.SendMessage(chatID, "Gagal menyimpan ide.")
+		}
+		return h.sender.SendMessage(chatID, RenderIdeaRecorded(idea))
 
 	case parser.ParsedTypeBlocker:
 		blocker := &domain.Blocker{
@@ -319,6 +334,76 @@ func (h *Handler) cmdTodo(ctx context.Context, chatID int64, args []string) erro
 
 	default:
 		return h.sender.SendMessage(chatID, "Perintah to-do: `/todo list`, `/todo add <tugas>`, `/todo done <id>`")
+	}
+}
+
+func (h *Handler) cmdIdea(ctx context.Context, chatID int64, args []string) error {
+	acc, err := h.accountRepo.GetByChatID(ctx, chatID)
+	if err != nil || acc == nil {
+		return h.sender.SendMessage(chatID, "Akun belum terdaftar. Ketik /start.")
+	}
+
+	if len(args) == 0 || args[0] == "list" {
+		ideas, err := h.ideaRepo.GetActiveByAccountID(ctx, acc.ID)
+		if err != nil {
+			return h.sender.SendMessage(chatID, "Gagal mengambil daftar ide.")
+		}
+		text, markup := RenderIdeaList(ideas)
+		return h.sender.SendMessageWithKeyboard(chatID, text, markup)
+	}
+
+	subCmd := strings.ToLower(args[0])
+	switch subCmd {
+	case "add":
+		if len(args) < 2 {
+			return h.sender.SendMessage(chatID, "Format: `/ide add <gagasan>` (contoh: `/ide add bikin video demo`)")
+		}
+		idea := &domain.Idea{
+			AccountID: acc.ID,
+			Title:     strings.Join(args[1:], " "),
+		}
+		if err := h.ideaRepo.Create(ctx, idea); err != nil {
+			return h.sender.SendMessage(chatID, "Gagal menyimpan ide.")
+		}
+		return h.sender.SendMessage(chatID, RenderIdeaRecorded(idea))
+
+	case "todo":
+		if len(args) < 2 {
+			return h.sender.SendMessage(chatID, "Format: `/ide todo <id>` (misal: `/ide todo 1`)")
+		}
+		id, err := strconv.Atoi(args[1])
+		if err != nil {
+			return h.sender.SendMessage(chatID, "ID ide harus berupa angka.")
+		}
+		idea, todo, err := h.ideaRepo.PromoteToTodo(ctx, id, acc.ID, "")
+		if err != nil {
+			return h.sender.SendMessage(chatID, fmt.Sprintf("Gagal memindahkan ide #%d ke to-do: %v", id, err))
+		}
+		return h.sender.SendMessage(chatID, RenderIdeaPromoted(idea, todo))
+
+	case "del", "done", "delete":
+		if len(args) < 2 {
+			return h.sender.SendMessage(chatID, "Format: `/ide del <id>` (misal: `/ide del 1`)")
+		}
+		id, err := strconv.Atoi(args[1])
+		if err != nil {
+			return h.sender.SendMessage(chatID, "ID ide harus berupa angka.")
+		}
+		if _, err := h.ideaRepo.MarkArchived(ctx, id, acc.ID); err != nil {
+			return h.sender.SendMessage(chatID, fmt.Sprintf("Gagal menghapus ide #%d: %v", id, err))
+		}
+		return h.sender.SendMessage(chatID, fmt.Sprintf("🗑️ Ide #%d berhasil diarsipkan dari Idea Vault.", id))
+
+	default:
+		// If user typed "/ide <gagasan>", treat it directly as adding an idea!
+		idea := &domain.Idea{
+			AccountID: acc.ID,
+			Title:     strings.Join(args, " "),
+		}
+		if err := h.ideaRepo.Create(ctx, idea); err != nil {
+			return h.sender.SendMessage(chatID, "Gagal menyimpan ide.")
+		}
+		return h.sender.SendMessage(chatID, RenderIdeaRecorded(idea))
 	}
 }
 
@@ -654,6 +739,45 @@ func (h *Handler) DispatchCallback(ctx context.Context, cb *CallbackQuery) error
 
 		msg := fmt.Sprintf("📜 *Log Terakhir `%s` (25 baris):*\n```\n%s\n```", name, logs)
 		return h.sender.SendMessage(chatID, msg)
+	}
+
+	if strings.HasPrefix(data, "idea:promote:") {
+		idStr := strings.TrimPrefix(data, "idea:promote:")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			return nil
+		}
+		_ = h.sender.AnswerCallbackQuery(cb.ID, "Memindahkan ke To-Do...", false)
+
+		acc, err := h.accountRepo.CreateOrGet(ctx, chatID, username)
+		if err != nil {
+			return h.sender.SendMessage(chatID, "Gagal memuat akun.")
+		}
+
+		idea, todo, err := h.ideaRepo.PromoteToTodo(ctx, id, acc.ID, "")
+		if err != nil {
+			return h.sender.SendMessage(chatID, fmt.Sprintf("❌ Gagal memindahkan ide #%d ke to-do: %v", id, err))
+		}
+		return h.sender.SendMessage(chatID, RenderIdeaPromoted(idea, todo))
+	}
+
+	if strings.HasPrefix(data, "idea:del:") {
+		idStr := strings.TrimPrefix(data, "idea:del:")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			return nil
+		}
+		_ = h.sender.AnswerCallbackQuery(cb.ID, "Menghapus ide...", false)
+
+		acc, err := h.accountRepo.CreateOrGet(ctx, chatID, username)
+		if err != nil {
+			return h.sender.SendMessage(chatID, "Gagal memuat akun.")
+		}
+
+		if _, err := h.ideaRepo.MarkArchived(ctx, id, acc.ID); err != nil {
+			return h.sender.SendMessage(chatID, fmt.Sprintf("❌ Gagal menghapus ide #%d: %v", id, err))
+		}
+		return h.sender.SendMessage(chatID, fmt.Sprintf("🗑️ Ide #%d telah diarsipkan dari Idea Vault.", id))
 	}
 
 	return nil

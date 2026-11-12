@@ -90,3 +90,33 @@ func TestRenderContainerList(t *testing.T) {
 		t.Errorf("Unexpected callback data: %s", markup.InlineKeyboard[0][0].CallbackData)
 	}
 }
+
+func TestRenderIdeaWorkflow(t *testing.T) {
+	idea := &domain.Idea{
+		ID:        1,
+		AccountID: uuid.New(),
+		Title:     "Bikin bot auto standup",
+	}
+
+	recOut := RenderIdeaRecorded(idea)
+	if !strings.Contains(recOut, "Idea Vault") || !strings.Contains(recOut, "#1") {
+		t.Errorf("Unexpected idea recorded render: %s", recOut)
+	}
+
+	listOut, markup := RenderIdeaList([]*domain.Idea{idea})
+	if !strings.Contains(listOut, "#1 — Bikin bot auto standup") {
+		t.Errorf("Unexpected idea list render: %s", listOut)
+	}
+	if len(markup.InlineKeyboard) != 1 || markup.InlineKeyboard[0][0].CallbackData != "idea:promote:1" {
+		t.Errorf("Unexpected markup for idea list: %+v", markup)
+	}
+
+	todo := &domain.Todo{
+		ID:    5,
+		Title: idea.Title,
+	}
+	promOut := RenderIdeaPromoted(idea, todo)
+	if !strings.Contains(promOut, "Dipromosikan ke To-Do #5") {
+		t.Errorf("Unexpected idea promoted render: %s", promOut)
+	}
+}

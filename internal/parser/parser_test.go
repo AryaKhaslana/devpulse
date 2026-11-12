@@ -27,6 +27,18 @@ func TestParseCasualInput(t *testing.T) {
 			wantTitle: "slicing ui dashboard",
 		},
 		{
+			name:      "idea prefix with colon",
+			input:     "ide: bikin fitur split bill pake qris dinamis",
+			wantType:  ParsedTypeIdea,
+			wantTitle: "Bikin fitur split bill pake qris dinamis",
+		},
+		{
+			name:      "idea english prefix",
+			input:     "idea: export pdf logbook pkl siap cetak",
+			wantType:  ParsedTypeIdea,
+			wantTitle: "Export pdf logbook pkl siap cetak",
+		},
+		{
 			name:      "blocker prefix",
 			input:     "blocker: nunggu access token cloudflare dari mentor",
 			wantType:  ParsedTypeBlocker,

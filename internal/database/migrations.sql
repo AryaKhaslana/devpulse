@@ -71,3 +71,15 @@ CREATE TABLE IF NOT EXISTS blockers (
     resolved_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 7. TABEL IDEAS (Brain Dump / Idea Vault)
+CREATE TABLE IF NOT EXISTS ideas (
+    id SERIAL PRIMARY KEY,
+    account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+    promoted_to_todo_id INT REFERENCES todos(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ideas_acc_active ON ideas(account_id) WHERE is_archived = FALSE;

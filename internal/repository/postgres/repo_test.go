@@ -74,8 +74,8 @@ func TestPostgresRepositoriesIntegration(t *testing.T) {
 	}
 
 	// 3. WorkLog Repo Test
-	today := time.Date(2026, 11, 11, 0, 0, 0, 0, loc)
 	now := time.Now().In(loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 
 	log1 := &domain.WorkLog{
 		AccountID: acc.ID,
@@ -198,6 +198,37 @@ func TestPostgresRepositoriesIntegration(t *testing.T) {
 	}
 	if !resolvedBlocker.IsResolved {
 		t.Errorf("Expected blocker to be resolved")
+	}
+
+	// 6. Idea Repo Test
+	ideaRepo := NewIdeaRepo(db.Pool)
+	idea := &domain.Idea{
+		AccountID: acc.ID,
+		Title:     "Bikin fitur split bill pake QRIS dinamis",
+	}
+	err = ideaRepo.Create(ctx, idea)
+	if err != nil {
+		t.Fatalf("Failed to create idea: %v", err)
+	}
+
+	activeIdeas, err := ideaRepo.GetActiveByAccountID(ctx, acc.ID)
+	if err != nil || len(activeIdeas) != 1 {
+		t.Fatalf("Expected 1 active idea, got %d", len(activeIdeas))
+	}
+
+	// Test Promote to Todo
+	archivedIdea, newTodo, err := ideaRepo.PromoteToTodo(ctx, idea.ID, acc.ID, "")
+	if err != nil {
+		t.Fatalf("Failed to promote idea to todo: %v", err)
+	}
+	if !archivedIdea.IsArchived {
+		t.Errorf("Expected promoted idea to be archived")
+	}
+	if archivedIdea.PromotedToTodoID == nil || *archivedIdea.PromotedToTodoID != newTodo.ID {
+		t.Errorf("Expected idea.PromotedToTodoID to match newTodo.ID %d", newTodo.ID)
+	}
+	if newTodo.Title != idea.Title {
+		t.Errorf("Expected todo title to match idea title, got %s", newTodo.Title)
 	}
 
 	// Cleanup

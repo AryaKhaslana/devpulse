@@ -12,6 +12,7 @@ type ParsedType string
 const (
 	ParsedTypeLog     ParsedType = "LOG"
 	ParsedTypeTodo    ParsedType = "TODO"
+	ParsedTypeIdea    ParsedType = "IDEA"
 	ParsedTypeBlocker ParsedType = "BLOCKER"
 	ParsedTypeUnknown ParsedType = "UNKNOWN"
 )
@@ -25,6 +26,7 @@ type ParseResult struct {
 
 var (
 	todoRegex    = regexp.MustCompile(`(?i)^(?:todo|rencana|plan|target)[\s:]+(.+)`)
+	ideaRegex    = regexp.MustCompile(`(?i)^(?:ide|idea|gagasan|inspo)[\s:]+(.+)`)
 	blockerRegex = regexp.MustCompile(`(?i)^(?:blocker|kendala|hambatan|masalah)[\s:]+(.+)`)
 	catatRegex   = regexp.MustCompile(`(?i)^(?:catat)[\s:]+(.+)`)
 
@@ -53,7 +55,15 @@ func ParseCasualInput(input string) ParseResult {
 		}
 	}
 
-	// 2. Check Blocker prefix
+	// 2. Check Idea prefix (Brain Dump / Idea Vault)
+	if m := ideaRegex.FindStringSubmatch(clean); len(m) > 1 {
+		return ParseResult{
+			Type:  ParsedTypeIdea,
+			Title: formatTitle(m[1]),
+		}
+	}
+
+	// 3. Check Blocker prefix
 	if m := blockerRegex.FindStringSubmatch(clean); len(m) > 1 {
 		return ParseResult{
 			Type:  ParsedTypeBlocker,

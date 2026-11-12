@@ -35,6 +35,7 @@ Banyak developer, anak magang, dan siswa PKL menghadapi masalah yang sama:
 - **☕ Instant Standup Generator (`/standup`)**: Menghasilkan format standup profesional dalam bahasa Indonesia rapi kapan saja secara on-demand.
 - **📋 Weekly PKL Logbook (`/logbook`)**: Format tabel hari Senin sampai Jumat lengkap dengan total capaian kategori koding, meeting, riset, dan deploy.
 - **🎯 Task & Blocker Tracker (`/todo` & `/blocker`)**: Catat rencana hari ini dan kendala teknis (`blocker: nunggu token mentor`). Saat to-do diselesaikan via `/todo done <id>`, otomatis tercatat sebagai capaian kerja hari ini.
+- **💡 Idea Vault & Brain Dump (`/ide`)**: Simpan ide liar mendadak (`ide: <gagasan>`) tanpa mengotori to-do list harian, lengkap dengan tombol 1-klik `[🎯 Eksekusi ke To-Do]` saat siap digarap!
 - **🐳 Native Docker Watchdog & Remote Management (`/containers` & `/docker`)**: Pantau kesehatan container server tanpa dependency library berat (Go Unix socket `/var/run/docker.sock`). Notifikasi alert instan saat container crash dilengkapi inline button `[🔄 Restart]` & `[📜 Log]`. Restart otomatis dicatat ke riwayat standup/logbook sebagai aktivitas deploy!
 - **🔍 Natural Work Search (`/cari <keyword>`)**: Cari kembali catatan koding masa lalu dalam hitungan detik.
 - **⚡ Super Lightweight**: Dibangun murni dengan Go standard library + driver atomic `pgx/v5` dan `robfig/cron/v3`. Tanpa framework berat eksternal.
@@ -118,6 +119,7 @@ Banyak developer, anak magang, dan siswa PKL menghadapi masalah yang sama:
 | `/logbook` | - | Generate tabel Laporan Mingguan PKL (Senin - Jumat) |
 | `/today` | - | Tampilkan timeline kronologis aktivitas hari ini |
 | `/todo` | `[list / add <teks> / done <id>]` | Kelola daftar to-do & rencana kerja aktif |
+| `/ide` | `[list / add <teks> / todo <id> / del <id>]` | Idea Vault: simpan ide mendadak & promosi ke to-do |
 | `/blocker` | `[list / add <teks> / done <id>]` | Kelola kendala / hambatan teknis aktif |
 | `/github` | `set <username> [token]` | Set akun GitHub untuk tracking commit |
 | `/repo` | `[list / add <owner/repo> / del <repo>]` | Kelola daftar repositori yang dipantau |
@@ -151,6 +153,7 @@ devpulse/
 │   ├── domain/
 │   │   ├── account.go            # Entity & Repository Interface Account
 │   │   ├── blocker.go            # Entity & Repository Interface Blocker
+│   │   ├── idea.go               # Entity & Repository Interface Idea (Idea Vault)
 │   │   ├── monitored_repo.go     # Entity & Repository Interface MonitoredRepo
 │   │   ├── todo.go               # Entity & Repository Interface Todo
 │   │   └── work_log.go           # Entity & Repository Interface WorkLog
@@ -168,6 +171,7 @@ devpulse/
 │   │   └── postgres/             # Query SQL relasional & batch commit deduplication
 │   │       ├── account_repo.go
 │   │       ├── blocker_repo.go
+│   │       ├── idea_repo.go
 │   │       ├── monitored_repo_repo.go
 │   │       ├── repo_test.go      # Integration test CRUD lengkap terhadap PostgreSQL
 │   │       ├── todo_repo.go

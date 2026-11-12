@@ -35,6 +35,7 @@ func RenderStart(username string) string {
 	sb.WriteString("• /sync - Tarik commit terbaru GitHub sekarang\n")
 	sb.WriteString("• /cari <kata kunci> - Cari riwayat catatan masa lalu\n")
 	sb.WriteString("• /containers atau /docker - Pantau status & restart Docker container\n")
+	sb.WriteString("• /ide - Idea Vault & Brain Dump (simpan ide tanpa mengotori to-do)\n")
 	return sb.String()
 }
 
@@ -149,4 +150,35 @@ func RenderContainerList(containers []docker.ContainerInfo) (string, InlineKeybo
 
 	sb.WriteString("\nℹ️ Klik tombol di atas atau ketik `/docker restart <nama>` / `/docker logs <nama>`.")
 	return sb.String(), InlineKeyboardMarkup{InlineKeyboard: keyboard}
+}
+
+func RenderIdeaRecorded(idea *domain.Idea) string {
+	return fmt.Sprintf("💡 *Ide Tersimpan di Idea Vault!*\n• ID: #%d\n• Ide: %s\n\nℹ️ Aman tersimpan! Ketik `/ide` untuk melihat daftar atau memindahkannya ke To-Do.", idea.ID, idea.Title)
+}
+
+func RenderIdeaList(ideas []*domain.Idea) (string, InlineKeyboardMarkup) {
+	if len(ideas) == 0 {
+		return "💡 *Idea Vault Kosong.*\nBelum ada ide yang disimpan. Ketik `ide: <gagasan kamu>` untuk mencatat ide liar tanpa mengotori to-do list harianmu!", InlineKeyboardMarkup{}
+	}
+
+	var sb strings.Builder
+	sb.WriteString("💡 *Daftar Ide di Idea Vault / Backlog:*\n\n")
+
+	var keyboard [][]InlineKeyboardButton
+	for i, item := range ideas {
+		sb.WriteString(fmt.Sprintf("%d. #%d — %s\n", i+1, item.ID, item.Title))
+
+		row := []InlineKeyboardButton{
+			{Text: fmt.Sprintf("🎯 Eksekusi #%d ke To-Do", item.ID), CallbackData: fmt.Sprintf("idea:promote:%d", item.ID)},
+			{Text: fmt.Sprintf("🗑️ Hapus #%d", item.ID), CallbackData: fmt.Sprintf("idea:del:%d", item.ID)},
+		}
+		keyboard = append(keyboard, row)
+	}
+
+	sb.WriteString("\nℹ️ Klik tombol di bawah atau ketik `/ide todo <id>` untuk menjadikan to-do.")
+	return sb.String(), InlineKeyboardMarkup{InlineKeyboard: keyboard}
+}
+
+func RenderIdeaPromoted(idea *domain.Idea, todo *domain.Todo) string {
+	return fmt.Sprintf("🚀 *Ide #%d Dipromosikan ke To-Do #%d!*\n• %s\n\n🎯 Siap dieksekusi hari ini! Ketik `/todo` untuk melihat daftar kerjaan aktif.", idea.ID, todo.ID, todo.Title)
 }
